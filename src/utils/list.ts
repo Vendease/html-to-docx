@@ -1,4 +1,4 @@
-const getListStyleType = (listType) => {
+const getListStyleType = (listType?: string) => {
   switch (listType) {
     case 'upper-roman':
       return 'upperRoman';
@@ -17,7 +17,8 @@ const getListStyleType = (listType) => {
   }
 };
 
-const getListPrefixSuffix = (style, lvl) => {
+// TODO: type style
+const getListPrefixSuffix = (style, lvl: number) => {
   if (!style) return `%${lvl + 1}`;
 
   const listType = style['list-style-type'];
