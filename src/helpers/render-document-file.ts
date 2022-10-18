@@ -8,6 +8,8 @@ import isVText from 'virtual-dom/vnode/is-vtext';
 import { default as HTMLToVDOM } from 'html-to-vdom';
 import escape from 'escape-html';
 import sizeOf from 'image-size';
+import { VNode as VNodeType, VTree } from 'virtual-dom';
+import { XMLBuilder } from 'xmlbuilder2/lib/interfaces';
 
 // FIXME: remove the cyclic dependency
 // eslint-disable-next-line import/no-cycle
@@ -22,8 +24,8 @@ const convertHTML = HTMLToVDOM({
 });
 
 // eslint-disable-next-line consistent-return, no-shadow
-export const buildImage = (docxDocumentInstance, vNode, maximumWidth = null) => {
-  let response = null;
+export const buildImage = (docxDocumentInstance, vNode: VNodeType, maximumWidth) => {
+  let response;
   try {
     // libtidy encodes the image src
     response = docxDocumentInstance.createMediaFile(decodeURIComponent(vNode.properties.src));
@@ -66,7 +68,7 @@ export const buildImage = (docxDocumentInstance, vNode, maximumWidth = null) => 
   }
 };
 
-export const buildList = (vNode, docxDocumentInstance, xmlFragment) => {
+export const buildList = (vNode: VNodeType, docxDocumentInstance, xmlFragment: XMLBuilder) => {
   const listElements = [];
 
   let vNodeObjects = [
@@ -160,7 +162,7 @@ export const buildList = (vNode, docxDocumentInstance, xmlFragment) => {
   return listElements;
 };
 
-function findXMLEquivalent(docxDocumentInstance, vNode, xmlFragment) {
+function findXMLEquivalent(docxDocumentInstance, vNode: VNodeType, xmlFragment: XMLBuilder) {
   if (
     vNode.tagName === 'div' &&
     (vNode.properties.attributes.class === 'page-break' ||
@@ -283,7 +285,7 @@ function findXMLEquivalent(docxDocumentInstance, vNode, xmlFragment) {
 }
 
 // eslint-disable-next-line consistent-return
-export function convertVTreeToXML(docxDocumentInstance, vTree, xmlFragment) {
+export function convertVTreeToXML(docxDocumentInstance, vTree: VTree, xmlFragment: XMLBuilder) {
   if (!vTree) {
     // eslint-disable-next-line no-useless-return
     return '';
