@@ -6,8 +6,10 @@
 import { fragment } from 'xmlbuilder2';
 import isVNode from 'virtual-dom/vnode/is-vnode';
 import isVText from 'virtual-dom/vnode/is-vtext';
-import colorNames from 'color-name';
+import colorNames, { RGB } from 'color-name';
 import { cloneDeep } from 'lodash';
+import { VNode } from 'virtual-dom';
+import { XMLBuilder } from 'xmlbuilder2/lib/interfaces';
 
 import namespaces from '../namespaces';
 import {
@@ -45,32 +47,48 @@ import {
 } from '../constants';
 import { vNodeHasChildren } from '../utils/vnode';
 
-// eslint-disable-next-line consistent-return
-const fixupColorCode = (colorCodeString) => {
-  if (Object.prototype.hasOwnProperty.call(colorNames, colorCodeString.toLowerCase())) {
-    const [red, green, blue] = colorNames[colorCodeString.toLowerCase()];
+export type Attributes = Partial<
+  Record<
+    | 'strong'
+    | 'i'
+    | 'u'
+    | 'sub'
+    | 'sup'
+    | 'color'
+    | 'backgroundColor'
+    | 'fontSize'
+    | 'hyperlink'
+    | 'highlightColor'
+    | 'font',
+    unknown
+  >
+>;
+
+const fixupColorCode = (colorCode: string) => {
+  if (Object.prototype.hasOwnProperty.call(colorNames, colorCode.toLowerCase())) {
+    const [red, green, blue]: RGB = colorNames[colorCode.toLowerCase()];
 
     return rgbToHex(red, green, blue);
-  } else if (rgbRegex.test(colorCodeString)) {
-    const matchedParts = colorCodeString.match(rgbRegex);
+  } else if (rgbRegex.test(colorCode)) {
+    const matchedParts = colorCode.match(rgbRegex) as RegExpMatchArray;
     const red = matchedParts[1];
     const green = matchedParts[2];
     const blue = matchedParts[3];
 
     return rgbToHex(red, green, blue);
-  } else if (hslRegex.test(colorCodeString)) {
-    const matchedParts = colorCodeString.match(hslRegex);
+  } else if (hslRegex.test(colorCode)) {
+    const matchedParts = colorCode.match(hslRegex) as RegExpMatchArray;
     const hue = matchedParts[1];
     const saturation = matchedParts[2];
     const luminosity = matchedParts[3];
 
     return hslToHex(hue, saturation, luminosity);
-  } else if (hexRegex.test(colorCodeString)) {
-    const matchedParts = colorCodeString.match(hexRegex);
+  } else if (hexRegex.test(colorCode)) {
+    const matchedParts = colorCode.match(hexRegex) as RegExpMatchArray;
 
     return matchedParts[1];
-  } else if (hex3Regex.test(colorCodeString)) {
-    const matchedParts = colorCodeString.match(hex3Regex);
+  } else if (hex3Regex.test(colorCode)) {
+    const matchedParts = colorCode.match(hex3Regex) as RegExpMatchArray;
     const red = matchedParts[1];
     const green = matchedParts[2];
     const blue = matchedParts[3];
@@ -94,14 +112,14 @@ const buildRunStyleFragment = (type = 'Hyperlink') =>
     .att('@w', 'val', type)
     .up();
 
-const buildTableRowHeight = (tableRowHeight) =>
+const buildTableRowHeight = (tableRowHeight: string | number) =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'trHeight')
-    .att('@w', 'val', tableRowHeight)
+    .att('@w', 'val', tableRowHeight as string)
     .att('@w', 'hRule', 'atLeast')
     .up();
 
-const buildVerticalAlignment = (verticalAlignment) => {
+const buildVerticalAlignment = (verticalAlignment: 'both' | 'bottom' | 'center' | 'top') => {
   if (verticalAlignment.toLowerCase() === 'middle') {
     verticalAlignment = 'center';
   }
@@ -112,25 +130,25 @@ const buildVerticalAlignment = (verticalAlignment) => {
     .up();
 };
 
-const buildVerticalMerge = (verticalMerge = 'continue') =>
+const buildVerticalMerge = (verticalMerge: 'continue' | 'restart' = 'continue') =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'vMerge')
     .att('@w', 'val', verticalMerge)
     .up();
 
-const buildColor = (colorCode) =>
+const buildColor = (colorCode: string) =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'color')
     .att('@w', 'val', colorCode)
     .up();
 
-const buildFontSize = (fontSize) =>
+const buildFontSize = (fontSize: string | number) =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'sz')
-    .att('@w', 'val', fontSize)
+    .att('@w', 'val', fontSize as string)
     .up();
 
-const buildShading = (colorCode) =>
+const buildShading = (colorCode: string) =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'shd')
     .att('@w', 'val', 'clear')
@@ -143,7 +161,7 @@ const buildHighlight = (color = 'yellow') =>
     .att('@w', 'val', color)
     .up();
 
-const buildVertAlign = (type = 'baseline') =>
+const buildVertAlign = (type: 'baseline' | 'subscript' | 'superscript' = 'baseline') =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'vertAlign')
     .att('@w', 'val', type)
@@ -152,7 +170,7 @@ const buildVertAlign = (type = 'baseline') =>
 const buildStrike = () =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'strike')
-    .att('@w', 'val', true)
+    .att('@w', 'val', 'true')
     .up();
 
 const buildBold = () =>
@@ -165,18 +183,21 @@ const buildItalics = () =>
     .ele('@w', 'i')
     .up();
 
-const buildUnderline = (type = 'single') =>
+const buildUnderline = (
+  type: 'double' | 'doubleAccounting' | 'none' | 'single' | 'singleAccounting' = 'single'
+) =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'u')
     .att('@w', 'val', type)
     .up();
 
-const buildLineBreak = (type = 'textWrapping') =>
+const buildLineBreak = (type: 'column' | 'page' | 'textWrapping' = 'textWrapping') =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'br')
     .att('@w', 'type', type)
     .up();
 
+// TODO: type buildBorder
 const buildBorder = (
   borderSide = 'top',
   borderSize = 0,
@@ -187,19 +208,19 @@ const buildBorder = (
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', borderSide)
     .att('@w', 'val', borderStroke)
-    .att('@w', 'sz', borderSize)
-    .att('@w', 'space', borderSpacing)
+    .att('@w', 'sz', String(borderSize))
+    .att('@w', 'space', String(borderSpacing))
     .att('@w', 'color', borderColor)
     .up();
 
-const buildTextElement = (text) =>
+const buildTextElement = (text: string) =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 't')
     .att('@xml', 'space', 'preserve')
     .txt(text)
     .up();
 
-const buildRunProperties = (attributes) => {
+const buildRunProperties = (attributes: Attributes) => {
   const runPropertiesFragment = fragment({ namespaceAlias: { w: namespaces.w } }).ele('@w', 'rPr');
   if (attributes && attributes.constructor === Object) {
     Object.keys(attributes).forEach((key) => {
@@ -220,19 +241,19 @@ const buildRunProperties = (attributes) => {
           runPropertiesFragment.import(buildVertAlign('superscript'));
           break;
         case 'color':
-          runPropertiesFragment.import(buildColor(attributes[key]));
+          runPropertiesFragment.import(buildColor(attributes[key] as string));
           break;
         case 'backgroundColor':
-          runPropertiesFragment.import(buildShading(attributes[key]));
+          runPropertiesFragment.import(buildShading(attributes[key] as string));
           break;
         case 'fontSize':
-          runPropertiesFragment.import(buildFontSize(attributes[key]));
+          runPropertiesFragment.import(buildFontSize(attributes[key] as number));
           break;
         case 'hyperlink':
           runPropertiesFragment.import(buildRunStyleFragment('Hyperlink'));
           break;
         case 'highlightColor':
-          runPropertiesFragment.import(buildHighlight(attributes[key]));
+          runPropertiesFragment.import(buildHighlight(attributes[key] as string));
           break;
         case 'font':
           runPropertiesFragment.import(buildRunFontFragment('Courier'));
@@ -246,7 +267,7 @@ const buildRunProperties = (attributes) => {
 };
 
 // eslint-disable-next-line consistent-return
-const buildTextFormatting = (vNode) => {
+const buildTextFormatting = (vNode: VNode) => {
   switch (vNode.tagName) {
     case 'strong':
     case 'b':
@@ -274,7 +295,7 @@ const buildTextFormatting = (vNode) => {
   }
 };
 
-const buildRun = (vNode, attributes) => {
+const buildRun = (vNode: VNode, attributes: Attributes) => {
   const runFragment = fragment({ namespaceAlias: { w: namespaces.w } }).ele('@w', 'r');
   const runPropertiesFragment = buildRunProperties(cloneDeep(attributes));
 
@@ -299,14 +320,14 @@ const buildRun = (vNode, attributes) => {
       'pre',
     ].includes(vNode.tagName)
   ) {
-    const runFragmentsArray = [];
+    const runFragmentsArray: XMLBuilder[] = [];
 
     let vNodes = [vNode];
     // create temp run fragments to split the paragraph into different runs
     let tempAttributes = cloneDeep(attributes);
     let tempRunFragment = fragment({ namespaceAlias: { w: namespaces.w } }).ele('@w', 'r');
     while (vNodes.length) {
-      const tempVNode = vNodes.shift();
+      const tempVNode = vNodes.shift() as VNode;
       if (isVText(tempVNode)) {
         const textFragment = buildTextElement(tempVNode.text);
         const tempRunPropertiesFragment = buildRunProperties({ ...attributes, ...tempAttributes });
@@ -356,7 +377,9 @@ const buildRun = (vNode, attributes) => {
             break;
         }
         const formattingFragment = buildTextFormatting(tempVNode);
-        runPropertiesFragment.import(formattingFragment);
+        if (formattingFragment) {
+          runPropertiesFragment.import(formattingFragment);
+        }
       }
 
       if (tempVNode.children && tempVNode.children.length) {
@@ -376,6 +399,7 @@ const buildRun = (vNode, attributes) => {
   if (isVText(vNode)) {
     const textFragment = buildTextElement(vNode.text);
     runFragment.import(textFragment);
+    // TODO: debug this
   } else if (attributes && attributes.type === 'picture') {
     const { type, inlineOrAnchored, ...otherAttributes } = attributes;
     // eslint-disable-next-line no-use-before-define
@@ -391,10 +415,10 @@ const buildRun = (vNode, attributes) => {
 };
 
 // eslint-disable-next-line consistent-return
-const fixupLineHeight = (lineHeight, fontSize) => {
+const fixupLineHeight = (lineHeight?: unknown, fontSize?: number) => {
   // FIXME: If line height is anything other than a number
   // eslint-disable-next-line no-restricted-globals
-  if (!isNaN(lineHeight)) {
+  if (lineHeight && !isNaN(lineHeight as number)) {
     if (fontSize) {
       const actualLineHeight = +lineHeight * fontSize;
 
@@ -410,47 +434,47 @@ const fixupLineHeight = (lineHeight, fontSize) => {
 };
 
 // eslint-disable-next-line consistent-return
-const fixupFontSize = (fontSizeString) => {
-  if (pointRegex.test(fontSizeString)) {
-    const matchedParts = fontSizeString.match(pointRegex);
-    // convert point to half point
-    return pointToHIP(matchedParts[1]);
-  } else if (pixelRegex.test(fontSizeString)) {
-    const matchedParts = fontSizeString.match(pixelRegex);
-    // convert pixels to half point
-    return pixelToHIP(matchedParts[1]);
+const fixupFontSize = (fontSize: string) => {
+  if (pointRegex.test(fontSize)) {
+    const matchedParts = fontSize.match(pointRegex) as string[];
+
+    return pointToHIP(parseFloat(matchedParts[1]));
+  } else if (pixelRegex.test(fontSize)) {
+    const matchedParts = fontSize.match(pixelRegex) as string[];
+
+    return pixelToHIP(parseFloat(matchedParts[1]));
   }
 };
 
 // eslint-disable-next-line consistent-return
-const fixupRowHeight = (rowHeightString) => {
-  if (pointRegex.test(rowHeightString)) {
-    const matchedParts = rowHeightString.match(pointRegex);
-    // convert point to half point
-    return pointToTWIP(matchedParts[1]);
-  } else if (pixelRegex.test(rowHeightString)) {
-    const matchedParts = rowHeightString.match(pixelRegex);
-    // convert pixels to half point
-    return pixelToTWIP(matchedParts[1]);
+const fixupRowHeight = (rowHeight: string) => {
+  if (pointRegex.test(rowHeight)) {
+    const matchedParts = rowHeight.match(pointRegex) as string[];
+
+    return pointToTWIP(parseFloat(matchedParts[1]));
+  } else if (pixelRegex.test(rowHeight)) {
+    const matchedParts = rowHeight.match(pixelRegex) as string[];
+
+    return pixelToTWIP(parseFloat(matchedParts[1]));
   }
 };
 
 // eslint-disable-next-line consistent-return
-const fixupMargin = (marginString) => {
-  if (pointRegex.test(marginString)) {
-    const matchedParts = marginString.match(pointRegex);
-    // convert point to half point
-    return pointToTWIP(matchedParts[1]);
-  } else if (pixelRegex.test(marginString)) {
-    const matchedParts = marginString.match(pixelRegex);
-    // convert pixels to half point
-    return pixelToTWIP(matchedParts[1]);
+const fixupMargin = (margin: string) => {
+  if (pointRegex.test(margin)) {
+    const matchedParts = margin.match(pointRegex) as string[];
+
+    return pointToTWIP(parseFloat(matchedParts[1]));
+  } else if (pixelRegex.test(margin)) {
+    const matchedParts = margin.match(pixelRegex) as string[];
+
+    return pixelToTWIP(parseFloat(matchedParts[1]));
   }
 };
 
-const buildRunOrRuns = (vNode, attributes) => {
+const buildRunOrRuns = (vNode: VNode, attributes: Attributes) => {
   if (isVNode(vNode) && vNode.tagName === 'span') {
-    let runFragments = [];
+    let runFragments: XMLBuilder[] = [];
 
     for (let index = 0; index < vNode.children.length; index++) {
       const childVNode = vNode.children[index];
@@ -487,7 +511,7 @@ const buildRunOrRuns = (vNode, attributes) => {
   }
 };
 
-const buildRunOrHyperLink = (vNode, attributes, docxDocumentInstance) => {
+const buildRunOrHyperLink = (vNode: VNode, attributes: Attributes, docxDocumentInstance) => {
   if (isVNode(vNode) && vNode.tagName === 'a') {
     const relationshipId = docxDocumentInstance.createDocumentRelationships(
       docxDocumentInstance.relationshipFilename,
@@ -520,7 +544,7 @@ const buildRunOrHyperLink = (vNode, attributes, docxDocumentInstance) => {
   return runFragments;
 };
 
-const buildNumberingProperties = (levelId, numberingId) =>
+const buildNumberingProperties = (levelId: number, numberingId: number) =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'numPr')
     .ele('@w', 'ilvl')
@@ -538,17 +562,17 @@ const buildNumberingInstances = () =>
     .up()
     .up();
 
-const buildSpacing = (lineSpacing, beforeSpacing, afterSpacing) => {
+const buildSpacing = (lineSpacing: number, beforeSpacing: number, afterSpacing: number) => {
   const spacingFragment = fragment({ namespaceAlias: { w: namespaces.w } }).ele('@w', 'spacing');
 
   if (lineSpacing) {
-    spacingFragment.att('@w', 'line', lineSpacing);
+    spacingFragment.att('@w', 'line', String(lineSpacing));
   }
   if (beforeSpacing) {
-    spacingFragment.att('@w', 'before', beforeSpacing);
+    spacingFragment.att('@w', 'before', String(beforeSpacing));
   }
   if (afterSpacing) {
-    spacingFragment.att('@w', 'after', afterSpacing);
+    spacingFragment.att('@w', 'after', String(afterSpacing));
   }
 
   spacingFragment.att('@w', 'lineRule', 'exact').up();
@@ -556,16 +580,20 @@ const buildSpacing = (lineSpacing, beforeSpacing, afterSpacing) => {
   return spacingFragment;
 };
 
-const buildIndentation = ({ left, right }) => {
+interface IIndentation {
+  left: number;
+  right: number;
+}
+const buildIndentation = ({ left, right }: IIndentation) => {
   const indentationFragment = fragment({
     namespaceAlias: { w: namespaces.w },
   }).ele('@w', 'ind');
 
   if (left) {
-    indentationFragment.att('@w', 'left', left);
+    indentationFragment.att('@w', 'left', String(left));
   }
   if (right) {
-    indentationFragment.att('@w', 'right', right);
+    indentationFragment.att('@w', 'right', String(right));
   }
 
   indentationFragment.up();
@@ -579,7 +607,9 @@ const buildPStyle = (style = 'Normal') =>
     .att('@w', 'val', style)
     .up();
 
-const buildHorizontalAlignment = (horizontalAlignment) => {
+const buildHorizontalAlignment = (
+  horizontalAlignment: 'both' | 'center' | 'distribute' | 'highKashida' | 'justify'
+) => {
   if (horizontalAlignment === 'justify') {
     horizontalAlignment = 'both';
   }
@@ -596,7 +626,7 @@ const buildParagraphBorder = () => {
   );
   const bordersObject = cloneDeep(paragraphBordersObject);
 
-  Object.keys(bordersObject).forEach((borderName) => {
+  (Object.keys(bordersObject) as (keyof typeof bordersObject)[]).forEach((borderName) => {
     if (bordersObject[borderName]) {
       const { size, spacing, color } = bordersObject[borderName];
 
@@ -610,13 +640,14 @@ const buildParagraphBorder = () => {
   return paragraphBorderFragment;
 };
 
+// TODO: type attributes
 const buildParagraphProperties = (attributes) => {
   const paragraphPropertiesFragment = fragment({ namespaceAlias: { w: namespaces.w } }).ele(
     '@w',
     'pPr'
   );
   if (attributes && attributes.constructor === Object) {
-    Object.keys(attributes).forEach((key) => {
+    (Object.keys(attributes) as (keyof typeof attributes)[]).forEach((key) => {
       switch (key) {
         case 'numbering':
           const { levelId, numberingId } = attributes[key];
@@ -677,7 +708,8 @@ const buildParagraphProperties = (attributes) => {
   return paragraphPropertiesFragment;
 };
 
-const computeImageDimensions = (vNode, attributes) => {
+// TODO: type attributes
+const computeImageDimensions = (vNode: VNode, attributes) => {
   const { maximumWidth, originalWidth, originalHeight } = attributes;
   const aspectRatio = originalWidth / originalHeight;
   const maximumWidthInEMU = TWIPToEMU(maximumWidth);
@@ -748,7 +780,8 @@ const computeImageDimensions = (vNode, attributes) => {
   attributes.height = modifiedHeight;
 };
 
-const buildParagraph = (vNode, attributes, docxDocumentInstance) => {
+// TODO: type attributes
+const buildParagraph = (vNode: VNode, attributes, docxDocumentInstance) => {
   const paragraphFragment = fragment({ namespaceAlias: { w: namespaces.w } }).ele('@w', 'p');
   const modifiedAttributes = { ...attributes };
   if (isVNode(vNode) && vNode.properties && vNode.properties.style) {
@@ -793,7 +826,7 @@ const buildParagraph = (vNode, attributes, docxDocumentInstance) => {
     if (vNode.properties.style['margin-left'] || vNode.properties.style['margin-right']) {
       const leftMargin = fixupMargin(vNode.properties.style['margin-left']);
       const rightMargin = fixupMargin(vNode.properties.style['margin-right']);
-      const indentation = {};
+      const indentation: { left?: number; right?: number } = {};
       if (leftMargin) {
         indentation.left = leftMargin;
       }
@@ -911,16 +944,16 @@ const buildParagraph = (vNode, attributes, docxDocumentInstance) => {
   return paragraphFragment;
 };
 
-const buildGridSpanFragment = (spanValue) =>
+const buildGridSpanFragment = (spanValue: number) =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'gridSpan')
-    .att('@w', 'val', spanValue)
+    .att('@w', 'val', String(spanValue))
     .up();
 
 const buildTableCellSpacing = (cellSpacing = 0) =>
   fragment({ namespaceAlias: { w: namespaces.w } })
     .ele('@w', 'tblCellSpacing')
-    .att('@w', 'w', cellSpacing)
+    .att('@w', 'w', String(cellSpacing))
     .att('@w', 'type', 'dxa')
     .up();
 
@@ -989,7 +1022,7 @@ const buildTableCellProperties = (attributes) => {
   return tableCellPropertiesFragment;
 };
 
-const fixupTableCellBorder = (vNode, attributes) => {
+const fixupTableCellBorder = (vNode: VNode, attributes) => {
   if (Object.prototype.hasOwnProperty.call(vNode.properties.style, 'border')) {
     if (vNode.properties.style.border === 'none' || vNode.properties.style.border === 0) {
       attributes.tableCellBorder = {};
@@ -1488,17 +1521,18 @@ const buildTableProperties = (attributes) => {
   return tablePropertiesFragment;
 };
 
-const cssBorderParser = (borderString) => {
-  let [size, stroke, color] = borderString.split(' ');
+const cssBorderParser = (borderString: string) => {
+  let [size, stroke, color]: [string | number, 'dashed' | 'dotted' | 'double' | 'single', string] =
+    borderString.split(' ');
 
   if (pointRegex.test(size)) {
-    const matchedParts = size.match(pointRegex);
-    // convert point to eighth of a point
-    size = pointToEIP(matchedParts[1]);
+    const matchedParts = size.match(pointRegex) as string[];
+
+    size = pointToEIP(parseFloat(matchedParts[1]));
   } else if (pixelRegex.test(size)) {
-    const matchedParts = size.match(pixelRegex);
-    // convert pixels to eighth of a point
-    size = pixelToEIP(matchedParts[1]);
+    const matchedParts = size.match(pixelRegex) as string[];
+
+    size = pixelToEIP(parseFloat(matchedParts[1]));
   }
   stroke = stroke && ['dashed', 'dotted', 'double'].includes(stroke) ? stroke : 'single';
 
@@ -1507,14 +1541,16 @@ const cssBorderParser = (borderString) => {
   return [size, stroke, color];
 };
 
-const buildTable = (vNode, attributes, docxDocumentInstance) => {
+const buildTable = (vNode: VNode, attributes, docxDocumentInstance) => {
   const tableFragment = fragment({ namespaceAlias: { w: namespaces.w } }).ele('@w', 'tbl');
   const modifiedAttributes = { ...attributes };
   if (isVNode(vNode) && vNode.properties) {
     const tableAttributes = vNode.properties.attributes || {};
     const tableStyles = vNode.properties.style || {};
-    const tableBorders = {};
-    const tableCellBorders = {};
+    const tableBorders: Partial<
+      Record<'top' | 'bottom' | 'left' | 'right' | 'stroke' | 'color' | 'insideV' | 'insideH', any>
+    > = {};
+    const tableCellBorders: Partial<Record<'top' | 'bottom' | 'left' | 'right', any>> = {};
     let [borderSize, borderStrike, borderColor] = [2, 'single', '000000'];
 
     // eslint-disable-next-line no-restricted-globals
@@ -1680,11 +1716,11 @@ const buildPresetGeometry = () =>
     .att('prst', 'rect')
     .up();
 
-const buildExtents = ({ width, height }) =>
+const buildExtents = ({ width, height }: { width: number; height: number }) =>
   fragment({ namespaceAlias: { a: namespaces.a } })
     .ele('@a', 'ext')
-    .att('cx', width)
-    .att('cy', height)
+    .att('cx', String(width))
+    .att('cy', String(height))
     .up();
 
 const buildOffset = () =>
@@ -1748,7 +1784,7 @@ const buildSrcRectFragment = () =>
     .att('t', '0')
     .up();
 
-const buildBinaryLargeImageOrPicture = (relationshipId) =>
+const buildBinaryLargeImageOrPicture = (relationshipId: string) =>
   fragment({
     namespaceAlias: { a: namespaces.a, r: namespaces.r },
   })
@@ -1758,7 +1794,7 @@ const buildBinaryLargeImageOrPicture = (relationshipId) =>
     .att('cstate', 'print')
     .up();
 
-const buildBinaryLargeImageOrPictureFill = (relationshipId) => {
+const buildBinaryLargeImageOrPictureFill = (relationshipId: string) => {
   const binaryLargeImageOrPictureFillFragment = fragment({
     namespaceAlias: { pic: namespaces.pic },
   }).ele('@pic', 'blipFill');
@@ -1780,8 +1816,8 @@ const buildNonVisualPictureDrawingProperties = () =>
     .up();
 
 const buildNonVisualDrawingProperties = (
-  pictureId,
-  pictureNameWithExtension,
+  pictureId: string,
+  pictureNameWithExtension: string,
   pictureDescription = ''
 ) =>
   fragment({ namespaceAlias: { pic: namespaces.pic } })
@@ -1793,8 +1829,8 @@ const buildNonVisualDrawingProperties = (
 
 const buildNonVisualPictureProperties = (
   pictureId,
-  pictureNameWithExtension,
-  pictureDescription
+  pictureNameWithExtension: string,
+  pictureDescription: string
 ) => {
   const nonVisualPicturePropertiesFragment = fragment({
     namespaceAlias: { pic: namespaces.pic },
@@ -1820,6 +1856,13 @@ const buildPicture = ({
   relationshipId,
   width,
   height,
+}: {
+  id: string;
+  fileNameWithExtension: string;
+  description: string;
+  relationshipId: string;
+  width: number;
+  height: number;
 }) => {
   const pictureFragment = fragment({ namespaceAlias: { pic: namespaces.pic } }).ele('@pic', 'pic');
   const nonVisualPicturePropertiesFragment = buildNonVisualPictureProperties(
@@ -1837,7 +1880,7 @@ const buildPicture = ({
   return pictureFragment;
 };
 
-const buildGraphicData = (graphicType, attributes) => {
+const buildGraphicData = (graphicType: string, attributes) => {
   const graphicDataFragment = fragment({ namespaceAlias: { a: namespaces.a } })
     .ele('@a', 'graphicData')
     .att('uri', 'http://schemas.openxmlformats.org/drawingml/2006/picture');
@@ -1850,7 +1893,7 @@ const buildGraphicData = (graphicType, attributes) => {
   return graphicDataFragment;
 };
 
-const buildGraphic = (graphicType, attributes) => {
+const buildGraphic = (graphicType: string, attributes) => {
   const graphicFragment = fragment({ namespaceAlias: { a: namespaces.a } }).ele('@a', 'graphic');
   // TODO: Handle drawing type
   const graphicDataFragment = buildGraphicData(graphicType, attributes);
@@ -1860,7 +1903,7 @@ const buildGraphic = (graphicType, attributes) => {
   return graphicFragment;
 };
 
-const buildDrawingObjectNonVisualProperties = (pictureId, pictureName) =>
+const buildDrawingObjectNonVisualProperties = (pictureId: string, pictureName: string) =>
   fragment({ namespaceAlias: { wp: namespaces.wp } })
     .ele('@wp', 'docPr')
     .att('id', pictureId)
@@ -1892,11 +1935,11 @@ const buildEffectExtentFragment = () =>
     .att('t', '0')
     .up();
 
-const buildExtent = ({ width, height }) =>
+const buildExtent = ({ width, height }: { width: number; height: number }) =>
   fragment({ namespaceAlias: { wp: namespaces.wp } })
     .ele('@wp', 'extent')
-    .att('cx', width)
-    .att('cy', height)
+    .att('cx', String(width))
+    .att('cy', String(height))
     .up();
 
 const buildPositionV = () =>
@@ -1924,7 +1967,7 @@ const buildSimplePos = () =>
     .att('y', '0')
     .up();
 
-const buildAnchoredDrawing = (graphicType, attributes) => {
+const buildAnchoredDrawing = (graphicType: string, attributes) => {
   const anchoredDrawingFragment = fragment({ namespaceAlias: { wp: namespaces.wp } })
     .ele('@wp', 'anchor')
     .att('distB', '0')
@@ -1963,7 +2006,7 @@ const buildAnchoredDrawing = (graphicType, attributes) => {
   return anchoredDrawingFragment;
 };
 
-const buildInlineDrawing = (graphicType, attributes) => {
+const buildInlineDrawing = (graphicType: string, attributes) => {
   const inlineDrawingFragment = fragment({ namespaceAlias: { wp: namespaces.wp } })
     .ele('@wp', 'inline')
     .att('distB', '0')
@@ -1988,7 +2031,7 @@ const buildInlineDrawing = (graphicType, attributes) => {
   return inlineDrawingFragment;
 };
 
-const buildDrawing = (inlineOrAnchored = false, graphicType, attributes) => {
+const buildDrawing = (inlineOrAnchored = false, graphicType: string, attributes) => {
   const drawingFragment = fragment({ namespaceAlias: { w: namespaces.w } }).ele('@w', 'drawing');
   const inlineOrAnchoredDrawingFragment = inlineOrAnchored
     ? buildInlineDrawing(graphicType, attributes)
